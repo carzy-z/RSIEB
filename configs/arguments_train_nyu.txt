@@ -1,10 +1,10 @@
 --mode train
 --model_name iebins_nyu
 --encoder large07
---pretrain model_zoo/swin_transformer/swin_large_patch4_window7_224_22k.pth
+--pretrain /data1/zhouhongwei/my_IEBins/IEBins/model_zoo/swin_transformer/swin_large_patch4_window7_224_22k.pth
 --dataset nyu
---data_path datasets/nyu_depth_v2/sync/
---gt_path datasets/nyu_depth_v2/sync/
+--data_path /data1/zhouhongwei/depth_datasets/NYU/nyu_depth_v2/sync
+--gt_path /data1/zhouhongwei/depth_datasets/NYU/nyu_depth_v2/sync
 --filenames_file data_splits/nyudepthv2_train_files_with_gt_dense.txt
 --batch_size 8
 --num_epochs 50
@@ -24,9 +24,10 @@
 --log_freq 100
 --do_online_eval
 --eval_freq 1000
---data_path_eval datasets/nyu_depth_v2/official_splits/test/
---gt_path_eval datasets/nyu_depth_v2/official_splits/test/
+--data_path_eval /data1/zhouhongwei/depth_datasets/NYU/nyu_depth_v2/official_splits/test
+--gt_path_eval /data1/zhouhongwei/depth_datasets/NYU/nyu_depth_v2/official_splits/test
 --filenames_file_eval data_splits/nyudepthv2_test_files_with_gt.txt
 --min_depth_eval 1e-3
 --max_depth_eval 10
 --eigen_crop
+

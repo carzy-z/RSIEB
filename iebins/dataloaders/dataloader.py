@@ -98,7 +98,8 @@ class DataLoadPreprocess(Dataset):
     
             image = Image.open(image_path)
             depth_gt = Image.open(depth_path)
-            
+            print("---gt.size-1",depth_gt.size)
+
             if self.args.do_kb_crop is True:
                 height = image.height
                 width = image.width
@@ -123,9 +124,14 @@ class DataLoadPreprocess(Dataset):
                 random_angle = (random.random() - 0.5) * 2 * self.args.degree
                 image = self.rotate_image(image, random_angle)
                 depth_gt = self.rotate_image(depth_gt, random_angle, flag=Image.NEAREST)
-            
+                print("okokokok")
+
+            print("depth_gt.size-2", depth_gt.size)
+            # print("---gt.shape-2", depth_gt.shape)
             image = np.asarray(image, dtype=np.float32) / 255.0
             depth_gt = np.asarray(depth_gt, dtype=np.float32)
+            print("---depth_gt.size-3", depth_gt.size)
+            print("---gt.shape-3", depth_gt.shape)
             depth_gt = np.expand_dims(depth_gt, axis=2)
 
             if self.args.dataset == 'nyu':
@@ -133,8 +139,11 @@ class DataLoadPreprocess(Dataset):
             else:
                 depth_gt = depth_gt / 256.0
 
+            # print("image----height", image.shape[0], "image-----width", image.shape[1])
+            # print("height-------width", self.args.input_height, self.args.input_width)
             if image.shape[0] != self.args.input_height or image.shape[1] != self.args.input_width:
                 image, depth_gt = self.random_crop(image, depth_gt, self.args.input_height, self.args.input_width)
+                print("ookokoko")
             image, depth_gt = self.train_preprocess(image, depth_gt)
             # https://github.com/ShuweiShao/URCDC-Depth
             image, depth_gt = self.Cut_Flip(image, depth_gt)

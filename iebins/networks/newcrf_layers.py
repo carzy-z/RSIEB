@@ -149,6 +149,7 @@ class WindowAttention(nn.Module):
         return x
 
 
+
 class CRFBlock(nn.Module):
     """ CRF Block.
 
@@ -192,6 +193,7 @@ class CRFBlock(nn.Module):
         self.H = None
         self.W = None
 
+
     def forward(self, x, v, mask_matrix):
         """ Forward function.
 
@@ -207,7 +209,7 @@ class CRFBlock(nn.Module):
         shortcut = x
         x = self.norm1(x)
         x = x.view(B, H, W, C)
-
+        
         # pad feature maps to multiples of window size
         pad_l = pad_t = 0
         pad_r = (self.window_size - W % self.window_size) % self.window_size

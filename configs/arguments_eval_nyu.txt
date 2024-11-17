@@ -12,4 +12,4 @@
 --max_depth_eval 10
 --eigen_crop
 
---checkpoint_path model_zoo/nyu_L.pth
+--checkpoint_path /data1/zhouhongwei/IEBins/models/1020/iebins_nyu/model-76000-best_silog_8.79526

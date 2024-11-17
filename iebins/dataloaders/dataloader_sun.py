@@ -118,8 +118,7 @@ class DataLoadPreprocess(Dataset):
                     depth_gt = Image.fromarray(depth_gt)
                 else:
                     depth_gt = depth_gt.crop((43, 45, 608, 472))
-                    image = image.crop((43, 45, 608, 472))
-    
+
             if self.args.do_random_rotate is True:
                 random_angle = (random.random() - 0.5) * 2 * self.args.degree
                 image = self.rotate_image(image, random_angle)
