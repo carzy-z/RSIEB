@@ -47,7 +47,7 @@ parser.add_argument('--gt_path_eval', type=str, help='path to the groundtruth da
 parser.add_argument('--filenames_file_eval', type=str, help='path to the filenames text file for evaluation',
                     required=False)
 parser.add_argument('--min_depth_eval', type=float, help='minimum depth for evaluation', default=1e-3)
-parser.add_argument('--max_depth_eval', type=float, help='maximum depth for evaluation', default=80)
+parser.add_argument('--max_depth_eval', type=float, help='maximum depth for evaluation', default=300)
 parser.add_argument('--eigen_crop', help='if set, crops according to Eigen NIPS14', action='store_true')
 parser.add_argument('--garg_crop', help='if set, crops according to Garg  ECCV16', action='store_true')
 parser.add_argument('--input-size', type=int, default=518)
@@ -80,36 +80,63 @@ def eval(model, dataloader_eval, post_process=False):
         with torch.no_grad():
             image = torch.autograd.Variable(eval_sample_batched['image'])
             image=image.squeeze()
-            print("----",type(image))
-            print("111",image.shape)
+            # print("----",type(image))
+            # print("111",image.shape)
             # print("456")
             gt_depth = eval_sample_batched['depth']
-            print('789')
-            image=image.numpy()
+            # print('789')
+            image=image.numpy().transpose(1,2,0)
+            padding_height, padding_width = 420, 840
+            top_pad, left_pad = padding_height - image.shape[0], padding_width - image.shape[1]
+            image = np.lib.pad(image, ((top_pad, 0), (0, left_pad), (0, 0)),
+                             mode='constant', constant_values=0)
+
+            # print(image.shape)
+
             pred_depths_r_list = model.infer_image(image,args.input_size)
-            print("ok")
+            # print("ok")
             if post_process:
+
+                image = image.transpose(2,0,1)
+                # print(image.shape)
+                image = torch.from_numpy(image)
+                image = image.unsqueeze(0)
+                # print(image.shape)
+
                 image_flipped = flip_lr(image)
-                pred_depths_r_list_flipped = model(image_flipped)
-                pred_depth = post_process_depth(pred_depths_r_list[-1], pred_depths_r_list_flipped[-1])
+                image_flipped = image_flipped.cuda()
+                pred_depths_flipped = model(image_flipped)
+                image = image.cuda()
+                pred_depth = model(image)
+
+                pred_depth = post_process_depth(pred_depth.unsqueeze(1), pred_depths_flipped.unsqueeze(1))
 
             pred_depth = pred_depth.cpu().numpy().squeeze()
             gt_depth = gt_depth.cpu().numpy().squeeze()
-
+            pred_depth = pred_depth[top_pad:, : -left_pad]
+            # print(pred_depth.shape)
         # depth = depth_anything.infer_image(raw_image, args.input_size)
 
+        pred_depth=(pred_depth-pred_depth.min())/(pred_depth.max()-pred_depth.min())*255.0
+        gt_depth=(gt_depth-gt_depth.min())/(gt_depth.max()-gt_depth.min())*255.0
+        
         pred_depth[pred_depth < args.min_depth_eval] = args.min_depth_eval
         pred_depth[pred_depth > args.max_depth_eval] = args.max_depth_eval
         pred_depth[np.isinf(pred_depth)] = args.max_depth_eval
         pred_depth[np.isnan(pred_depth)] = args.min_depth_eval
 
         valid_mask = np.logical_and(gt_depth > args.min_depth_eval, gt_depth < args.max_depth_eval)
+        # print("sajhgsah ", args.min_depth_eval, args.max_depth_eval)
 
         # pred_depth=(pred_depths_r_list-np.min(pred_depths_r_list))/(np.max(pred_depths_r_list)-np.min(pred_depths_r_list))
-        # gt_depth = (gt_depth-np.min(gt_depth))/(np.max(gt_depth)-np.min(gt_depth))
+        # gt_depth = (gt_depth-np.min(gt_depth))/(np.max(gt_depth)-np.min(gt_depth)))
 
+        pred_depth = (pred_depth - pred_depth.min()) / (pred_depth.max() - pred_depth.min()) * 255.0
+        gt_depth = (gt_depth - gt_depth.min()) / (gt_depth.max() - gt_depth.min()) * 255.0
+        print("gt---",gt_depth[valid_mask])
+        print("pred-",pred_depth[valid_mask])
         measures = compute_errors(gt_depth[valid_mask], pred_depth[valid_mask])
-
+        # print(measures)
         eval_measures[:9] += torch.tensor(measures).cuda()
         eval_measures[9] += 1
 
@@ -159,7 +186,7 @@ def main_worker(args):
     cudnn.benchmark = True
 
     dataloader_eval = NewDataLoader(args, 'online_eval')
-    print("123")
+    # print("123")
     # ===== Evaluation ======
     model.eval()
     with torch.no_grad():

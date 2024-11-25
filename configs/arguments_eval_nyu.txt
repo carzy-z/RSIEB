@@ -5,11 +5,11 @@
 --input_width 640
 --max_depth 10
 
---data_path_eval datasets/nyu/official_splits/test/
---gt_path_eval datasets/nyu/official_splits/test/
+--data_path_eval /data1/zhouhongwei/depth_datasets/NYU/nyu_depth_v2/official_splits/test
+--gt_path_eval /data1/zhouhongwei/depth_datasets/NYU/nyu_depth_v2/official_splits/test
 --filenames_file_eval data_splits/nyudepthv2_test_files_with_gt.txt
 --min_depth_eval 1e-3
 --max_depth_eval 10
 --eigen_crop
 
---checkpoint_path /data1/zhouhongwei/IEBins/models/1020/iebins_nyu/model-76000-best_silog_8.79526
+--checkpoint_path /data1/zhouhongwei/my_IEBins/IEBins/models/0930/iebins_nyu/model-186000-best_silog_8.74580

@@ -12,4 +12,4 @@
 --max_depth_eval 10
 --eigen_crop
 
---checkpoint_path /data1/zhouhongwei/my_IEBins/IEBins/models/0923/iebins_kittieigen_kb/model-303000-best_silog_7.40597
+--checkpoint_path /data1/zhouhongwei/my_IEBins/IEBins/models/0930/iebins_nyu/model-186000-best_silog_8.74580

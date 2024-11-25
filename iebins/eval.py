@@ -69,6 +69,10 @@ def eval(model, dataloader_eval, post_process=False):
                 continue
 
             pred_depths_r_list, _, _ = model(image)
+            # print("-------------------------")
+            # print("pred_depths_r",pred_depths_r_list)
+            # print("gt_depth",gt_depth)
+            # print("--------------------------")
             if post_process:
                 image_flipped = flip_lr(image)
                 pred_depths_r_list_flipped, _, _ = model(image_flipped)

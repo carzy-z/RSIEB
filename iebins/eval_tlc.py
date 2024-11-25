@@ -9,7 +9,7 @@ from tqdm import tqdm
 from utils import post_process_depth, flip_lr, compute_errors
 from networks.NewCRFDepth import NewCRFDepth
 
-from dataloaders.levir_dataloader import NewDataLoader
+from dataloaders.tlc_dataloader import NewDataLoader
 
 def convert_arg_line_to_args(arg_line):
     for arg in arg_line.split():
@@ -72,8 +72,6 @@ def eval(model, dataloader_eval, post_process=False):
                 pred_depths_r_list_flipped, _, _ = model(image_flipped)
                 pred_depth = post_process_depth(pred_depths_r_list[-1], pred_depths_r_list_flipped[-1])
 
-            # print("gt_depth", gt_depth)
-            # print("pred_depth", pred_depth)
 
             pred_depth = pred_depth.cpu().numpy().squeeze()
             gt_depth = gt_depth.cpu().numpy().squeeze()
@@ -85,12 +83,20 @@ def eval(model, dataloader_eval, post_process=False):
         pred_depth[np.isinf(pred_depth)] = args.max_depth_eval
         pred_depth[np.isnan(pred_depth)] = args.min_depth_eval
 
+        print("gt_depth", gt_depth)
+        print("gt_depth", gt_depth.max())
+        print("gt_depth", gt_depth.min())
+        print("-----------------------------------------")
+        print("pred_depth", pred_depth)
+        print("pred_depth", pred_depth.max())
+        print("pred_depth", pred_depth.min())
+
         #print("pred_depth--", pred_depth)
 
         valid_mask = np.logical_and(gt_depth > args.min_depth_eval, gt_depth < args.max_depth_eval)
 
-        print("gt_depth[valid_mask]",gt_depth[valid_mask])
-        print("pred_depth[valid_mask]",pred_depth[valid_mask])
+        # print("gt_depth[valid_mask]",gt_depth[valid_mask])
+        # print("pred_depth[valid_mask]",pred_depth[valid_mask])
         measures = compute_errors(gt_depth[valid_mask], pred_depth[valid_mask])
 
         eval_measures[:9] += torch.tensor(measures).cuda()

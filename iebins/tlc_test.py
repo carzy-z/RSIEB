@@ -14,7 +14,10 @@ from tqdm import tqdm
 
 from utils import post_process_depth, flip_lr
 from networks.NewCRFDepth import NewCRFDepth
-from dataloaders.whu_dataloader import NewDataLoader
+from dataloaders.tlc_dataloader import NewDataLoader
+
+from sklearn.preprocessing import MinMaxScaler
+
 
 def convert_arg_line_to_args(arg_line):
     for arg in arg_line.split():
@@ -98,16 +101,24 @@ def test(params):
             pred_depth = pred_depth.cpu().numpy().squeeze()
             # print('pred_depth.shape',pred_depth.shape)
             # print('pred_depth',pred_depth)
-            pred_depth=(pred_depth-pred_depth.min())/(pred_depth.max()-pred_depth.min()) *255.0
-            #print(f"第{step}张图",pred_depth)
+            # print("pred_depth.max()",pred_depth.max())
+            # print("pred_depth.min()",pred_depth.min())
+            # print("pred_depth.max()-pred_depth.min()",pred_depth.max()-pred_depth.min())
+            np.savetxt('tlc_pixels.csv', pred_depth, delimiter=',')
+            # pred_depth=(pred_depth-pred_depth.min())/(pred_depth.max()-pred_depth.min()) *255.0
+            # scaler=MinMaxScaler(feature_range=(0,255))
+            # pred_depth = scaler.fit_transform(pred_depth)
             pred_depths.append(pred_depth)
+            # np.savetxt('tlc_normal.csv', pred_depth, delimiter=',')
+            # print("ok")
+            # print('pred_depth--',pred_depth)
 
     elapsed_time = time.time() - start_time
     print('Elapesed time: %s' % str(elapsed_time))
     print('Done.')
-
+    path="/data1/zhouhongwei/exper"
     save_name = 'result_' + args.model_name
-
+    save_name = os.path.join(path, save_name)
     print('Saving result pngs..')
     if not os.path.exists(save_name):
         try:
@@ -121,7 +132,7 @@ def test(params):
         filename_pred_png = save_name + '/raw/' +lines[s].split()[0].split('/')[-3]+"_"+lines[s].split()[0].split('/')[-1]
         #print(filename_pred_png)
         pred_depth = pred_depths[s]
-        pred_depth_scaled = pred_depth *1.0
+        pred_depth_scaled = pred_depth
         pred_depth_scaled = pred_depth_scaled.astype(np.float32)
         cv2.imwrite(filename_pred_png, pred_depth_scaled, [cv2.IMWRITE_PNG_COMPRESSION, 0])
 

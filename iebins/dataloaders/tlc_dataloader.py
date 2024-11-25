@@ -3,11 +3,15 @@ from torch.utils.data import Dataset, DataLoader
 import torch.utils.data.distributed
 from torchvision import transforms
 
+import re
 import numpy as np
 from PIL import Image
 import os
 import random
 import copy
+
+os.environ["OPENCV_IO_ENABLE_OPENEXR"] = "1"
+
 import cv2
 
 from utils import DistributedSamplerNoEvenlyDivisible
@@ -49,6 +53,7 @@ class NewDataLoader(object):
                 self.eval_sampler = DistributedSamplerNoEvenlyDivisible(self.testing_samples, shuffle=False)
             else:
                 self.eval_sampler = None
+
             self.data = DataLoader(self.testing_samples, 1,
                                    shuffle=False,
                                    num_workers=1,
@@ -60,10 +65,11 @@ class NewDataLoader(object):
             self.data = DataLoader(self.testing_samples, 1, shuffle=False, num_workers=1)
 
         else:
-            print('mode should be one of \'train, test, online_eval\'. Got {}'.format(mode))
+            print('mode should be one of \'train, test\'. Got {}'.format(mode))
 
 
 class DataLoadPreprocess(Dataset):
+
     def __init__(self, args, mode, transform=None, is_for_online_eval=False):
         self.args = args
         if mode == 'online_eval':
@@ -84,102 +90,125 @@ class DataLoadPreprocess(Dataset):
         focal = 518.8579
 
         if self.mode == 'train':
-            if self.args.dataset == 'kitti':
-                rgb_file = sample_path.split()[0]
-                depth_file = os.path.join(sample_path.split()[0].split('/')[0], sample_path.split()[1])
-                if self.args.use_right is True and random.random() > 0.5:
-                    rgb_file = rgb_file.replace('image_02', 'image_03')
-                    depth_file = depth_file.replace('image_02', 'image_03')
-            else:
-                rgb_file = sample_path.split()[0]
-                depth_file = sample_path.split()[1]
+            rgb_file = sample_path.split()[0]
+            depth_file = sample_path.split()[1]
 
             image_path = os.path.join(self.args.data_path, rgb_file)
             depth_path = os.path.join(self.args.gt_path, depth_file)
 
-            image = Image.open(image_path)
-            depth_gt = Image.open(depth_path)
+            org = Image.open(image_path)
+            imgs = org.split()
 
-            if self.args.do_kb_crop is True:
-                height = image.height
-                width = image.width
-                top_margin = int(height - 352)
-                left_margin = int((width - 1216) / 2)
-                depth_gt = depth_gt.crop((left_margin, top_margin, left_margin + 1216, top_margin + 352))
-                image = image.crop((left_margin, top_margin, left_margin + 1216, top_margin + 352))
-
-            # To avoid blank boundaries due to pixel registration
-            if self.args.dataset == 'nyu':
-                if self.args.input_height == 480:
-                    depth_gt = np.array(depth_gt)
-                    valid_mask = np.zeros_like(depth_gt)
-                    valid_mask[45:472, 43:608] = 1
-                    depth_gt[valid_mask == 0] = 0
-                    depth_gt = Image.fromarray(depth_gt)
-                else:
-                    depth_gt = depth_gt.crop((43, 45, 608, 472))
-                    image = image.crop((43, 45, 608, 472))
-
-            if self.args.do_random_rotate is True:
-                random_angle = (random.random() - 0.5) * 2 * self.args.degree
-                image = self.rotate_image(image, random_angle)
-                depth_gt = self.rotate_image(depth_gt, random_angle, flag=Image.NEAREST)
-
-            image = np.asarray(image, dtype=np.float32) / 255.0
-            depth_gt = np.asarray(depth_gt, dtype=np.float32)
-            depth_gt = np.expand_dims(depth_gt, axis=2)
-
-            if self.args.dataset == 'nyu':
-                depth_gt = depth_gt / 1000.0
+            if len(imgs) == 3:
+                img = org
+            elif len(imgs) == 1:
+                g = imgs[0]
+                img = Image.merge("RGB", (g, g, g))
             else:
-                depth_gt = depth_gt / 256.0
+                raise Exception("Images must have 3 channels or 1.")
+            image = np.asarray(img, dtype=np.float32) / 255.0
 
-            if image.shape[0] != self.args.input_height or image.shape[1] != self.args.input_width:
-                image, depth_gt = self.random_crop(image, depth_gt, self.args.input_height, self.args.input_width)
+
+            # 读取depth
+            file = open(depth_path, 'rb')
+            header = str(file.readline().decode('latin-1')).rstrip()
+
+            if header == 'PF':
+                color = True
+            elif header == 'Pf':
+                color = False
+            else:
+                raise Exception('Not a PFM file.')
+            dim_match = re.match(r'^(\d+)\s(\d+)\s$', file.readline().decode('latin-1'))
+            if dim_match:
+                width, height = map(int, dim_match.groups())
+            else:
+                raise Exception('Malformed PFM header.')
+            scale = float((file.readline().decode('latin-1')).rstrip())
+            if scale < 0:  # little-endian
+                data_type = '<f'
+            else:
+                data_type = '>f'  # big-endian
+
+            data = np.fromfile(file, data_type)
+            shape = (height, width, 3) if color else (height, width)
+            data = np.reshape(data, shape)
+            data = np.flip(data, 0)
+            depth_gt=data.astype(np.float32)
+            depth_gt = np.expand_dims(depth_gt, axis=2)
+            # print(image.shape,depth_gt.shape)
+            # 深度图进行数据增强，
             image, depth_gt = self.train_preprocess(image, depth_gt)
-            # https://github.com/ShuweiShao/URCDC-Depth
             image, depth_gt = self.Cut_Flip(image, depth_gt)
-            sample = {'image': image, 'depth': depth_gt, 'focal': focal}
+
+            sample = {'image': image, 'depth': depth_gt, 'focal': focal, }
 
         else:
             if self.mode == 'online_eval':
                 data_path = self.args.data_path_eval
             else:
                 data_path = self.args.data_path
-
+            #image
             image_path = os.path.join(data_path, "./" + sample_path.split()[0])
-            image = np.asarray(Image.open(image_path), dtype=np.float32) / 255.0
-            image = cv2.resize(image, (352, 640))
+            # image = np.asarray(Image.open(image_path), dtype=np.float32) / 255.0
+            # print("----", image.shape)
 
+            org = Image.open(image_path)
+            imgs = org.split()
+
+            if len(imgs) == 3:
+                img = org
+            elif len(imgs) == 1:
+                g = imgs[0]
+                img = Image.merge("RGB", (g, g, g))
+            else:
+                raise Exception("Images must have 3 channels or 1.")
+
+            image=np.asarray(img,dtype=np.float32)/255.0
+            # print("111",image.shape)
+
+
+
+            # depth
             if self.mode == 'online_eval':
                 gt_path = self.args.gt_path_eval
+                # print("depth_path", os.path.join(gt_path,"./"+ sample_path.split()[1]))
                 depth_path = os.path.join(gt_path, "./" + sample_path.split()[1])
-                if self.args.dataset == 'kitti':
-                    depth_path = os.path.join(gt_path, sample_path.split()[0].split('/')[0], sample_path.split()[1])
+
                 has_valid_depth = False
                 try:
-                    depth_gt = Image.open(depth_path)
+                    file = open(depth_path, 'rb')
                     has_valid_depth = True
                 except IOError:
                     depth_gt = False
-                    # print('Missing gt for {}'.format(image_path))
 
                 if has_valid_depth:
-                    depth_gt = np.asarray(depth_gt, dtype=np.float32)
-                    depth_gt = np.expand_dims(depth_gt, axis=2)
-                    if self.args.dataset == 'nyu':
-                        depth_gt = depth_gt / 1000.0
-                    else:
-                        depth_gt = depth_gt / 256.0
+                    header = str(file.readline().decode('latin-1')).rstrip()
 
-            if self.args.do_kb_crop is True:
-                height = image.shape[0]
-                width = image.shape[1]
-                top_margin = int(height - 352)
-                left_margin = int((width - 1216) / 2)
-                image = image[top_margin:top_margin + 352, left_margin:left_margin + 1216, :]
-                if self.mode == 'online_eval' and has_valid_depth:
-                    depth_gt = depth_gt[top_margin:top_margin + 352, left_margin:left_margin + 1216, :]
+                    if header == 'PF':
+                        color = True
+                    elif header == 'Pf':
+                        color = False
+                    else:
+                        raise Exception('Not a PFM file.')
+                    dim_match = re.match(r'^(\d+)\s(\d+)\s$', file.readline().decode('latin-1'))
+                    if dim_match:
+                        width, height = map(int, dim_match.groups())
+                    else:
+                        raise Exception('Malformed PFM header.')
+                    scale = float((file.readline().decode('latin-1')).rstrip())
+                    if scale < 0:  # little-endian
+                        data_type = '<f'
+                    else:
+                        data_type = '>f'  # big-endian
+
+                    data = np.fromfile(file, data_type)
+                    shape = (height, width, 3) if color else (height, width)
+                    data = np.reshape(data, shape)
+                    data = np.flip(data, 0)
+                    depth_gt = data.astype(np.float32)
+                    depth_gt = np.expand_dims(depth_gt, axis=2)
+                    # print(depth_gt.shape)
 
             if self.mode == 'online_eval':
                 sample = {'image': image, 'depth': depth_gt, 'focal': focal, 'has_valid_depth': has_valid_depth}
@@ -187,8 +216,10 @@ class DataLoadPreprocess(Dataset):
                 sample = {'image': image, 'focal': focal}
 
         if self.transform:
-            sample = self.transform([sample, self.args.dataset])
+            sample = self.transform(sample)
 
+        # print(sample["image"].shape)
+        # print("sample_depth",sample["depth"].shape)
         return sample
 
     def rotate_image(self, image, angle, flag=Image.BILINEAR):
@@ -226,10 +257,11 @@ class DataLoadPreprocess(Dataset):
         image_aug = image ** gamma
 
         # brightness augmentation
-        if self.args.dataset == 'nyu':
-            brightness = random.uniform(0.75, 1.25)
-        else:
-            brightness = random.uniform(0.9, 1.1)
+        # if self.args.dataset == 'nyu':
+        #     brightness = random.uniform(0.75, 1.25)
+        # else:
+
+        brightness = random.uniform(0.9, 1.1)
         image_aug = image_aug * brightness
 
         # color augmentation
@@ -276,41 +308,21 @@ class ToTensor(object):
         self.mode = mode
         self.normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
 
-    def __call__(self, sample_dataset):
-
-        sample = sample_dataset[0]
-        dataset = sample_dataset[1]
+    def __call__(self, sample):
 
         image, focal = sample['image'], sample['focal']
         image = self.to_tensor(image)
         image = self.normalize(image)
 
-        if dataset == 'kitti':
-            K_p = np.array([[716.88, 0, 596.5593, 0],
-                            [0, 716.88, 149.854, 0],
-                            [0, 0, 1, 0],
-                            [0, 0, 0, 1]], dtype=np.float32)
-            inv_K_p = np.linalg.pinv(K_p)
-            inv_K_p = torch.from_numpy(inv_K_p)
-
-        elif dataset == 'nyu':
-            K_p = np.array([[518.8579, 0, 325.5824, 0],
-                            [0, 518.8579, 253.7362, 0],
-                            [0, 0, 1, 0],
-                            [0, 0, 0, 1]], dtype=np.float32)
-            inv_K_p = np.linalg.pinv(K_p)
-            inv_K_p = torch.from_numpy(inv_K_p)
-
         if self.mode == 'test':
-            return {'image': image, 'inv_K_p': inv_K_p, 'focal': focal}
+            return {'image': image, 'focal': focal}
 
         depth = sample['depth']
         if self.mode == 'train':
             depth = self.to_tensor(depth)
             return {'image': image, 'depth': depth, 'focal': focal}
         else:
-            has_valid_depth = sample['has_valid_depth']
-            return {'image': image, 'depth': depth, 'focal': focal, 'has_valid_depth': has_valid_depth}
+            return {'image': image, 'depth': depth, 'focal': focal}
 
     def to_tensor(self, pic):
         if not (_is_pil_image(pic) or _is_numpy_image(pic)):
@@ -318,6 +330,7 @@ class ToTensor(object):
                 'pic should be PIL Image or ndarray. Got {}'.format(type(pic)))
 
         if isinstance(pic, np.ndarray):
+            # print(pic.shape)
             img = torch.from_numpy(pic.transpose((2, 0, 1)))
             return img
 
@@ -342,3 +355,49 @@ class ToTensor(object):
             return img.float()
         else:
             return img
+
+# cams_path=depth_path.replace("depths", "cams")
+# cams_path=cams_path.replace(".exr", ".txt")
+#
+# cam = np.zeros((2, 4, 4), dtype=np.float32)
+# intrinsics = np.zeros((3, 3), dtype=np.float32)
+# extrinsics = np.zeros((4, 4), dtype=np.float32)
+# words = open(cams_path).read().split()
+# # read extrinsic
+# for i in range(0, 4):
+#     for j in range(0, 4):
+#         extrinsic_index = 4 * i + j + 2
+#         extrinsics[i][j] = words[extrinsic_index]
+# O = np.eye(3, dtype=np.float32)
+# O[1, 1] = -1
+# O[2, 2] = -1
+# R = extrinsics[0:3, 0:3]
+# R2 = np.matmul(R, O)
+# extrinsics[0:3, 0:3] = R2
+#
+# extrinsics = np.linalg.inv(extrinsics)  # Tcw
+# cam[0, :, :] = extrinsics
+#
+# for i in range(0, 3):
+#     for j in range(0, 3):
+#         intrinsic_index = 3 * i + j + 18
+#         intrinsics[i][j] = words[intrinsic_index]
+# cam[1, 0:3, 0:3] = intrinsics
+#
+# # depth range
+# cam[1][3][0] = np.float32(words[27])  # start
+# cam[1][3][3] = np.float32(words[28])  # end
+# cam[1][3][1] = np.float32(words[29]) * 1  # interval
+#
+# depth_min=cam[1][3][0]
+# depth_max=cam[1][3][3]
+
+
+# print("de00f2d21f",cam[1][3][0],cam[1][3][3],cam[1][3][1])
+
+# depth_gt = np.array(depth_gt).astype(np.float32)  # 获取tiff文件
+
+# depth应该÷多少？不除
+# depth_gt = depth_gt / 64.0
+# mask = np.float32((depth_gt >= depth_min) * 1.0) * np.float32((depth_gt <= depth_max) * 1.0)
+# sample = {'image': image, 'depth': depth_gt, 'focal': focal,"depth_min":depth_min, "depth_max":depth_max,"mask":mask}

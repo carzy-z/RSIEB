@@ -189,6 +189,7 @@ class DepthAnythingV2(nn.Module):
 
         #h, w = raw_image.shape[:2]
         #image=raw_image
+        # print(image.shape,(h,w))
         depth = self.forward(image)
         
         depth = F.interpolate(depth[:, None], (h, w), mode="bilinear", align_corners=True)[0, 0]
@@ -211,7 +212,7 @@ class DepthAnythingV2(nn.Module):
         ])
         
         h, w = raw_image.shape[:2]
-        print("---any----",type(raw_image))
+        # print("---any----",type(raw_image))
         image = cv2.cvtColor(raw_image, cv2.COLOR_BGR2RGB) / 255.0
         #image=raw_image.detach().numpy()
         image = transform({'image': image})['image']

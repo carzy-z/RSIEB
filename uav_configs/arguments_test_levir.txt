@@ -1,8 +1,8 @@
 --model_name iebins_uav_levir_self_normalize
 --encoder large07
 
---data_path /data1/zhouhongwei/depth_datasets
---filenames_file uav_data_splits/LEVIR_med_testing_list.txt
+--data_path_eval /data1/zhouhongwei/depth_datasets
+--filenames_file_eval uav_data_splits/LEVIR_med_testing_list.txt
 --max_depth 137
 
---checkpoint_path /data1/zhouhongwei/IEBins/models/1110/iebins_uav_levir/model-2000-best_silog_1.89158
+--checkpoint_path /data1/zhouhongwei/exper/models/1107/iebins_uav/model-91000-best_silog_0.99311

@@ -100,7 +100,7 @@ else:
     args = parser.parse_args()
 
 
-from dataloaders.levir_dataloader import NewDataLoader
+from dataloaders.whu_mvs_dataloader import NewDataLoader
 
 
 def online_eval(model, dataloader_eval, gpu, epoch, ngpus, group, post_process=False):
@@ -109,47 +109,30 @@ def online_eval(model, dataloader_eval, gpu, epoch, ngpus, group, post_process=F
         with torch.no_grad():
             image = torch.autograd.Variable(eval_sample_batched['image'].cuda(gpu, non_blocking=True))
             gt_depth = eval_sample_batched['depth']
-            # has_valid_depth = eval_sample_batched['has_valid_depth']
-            # if not has_valid_depth:
-            #     # print('Invalid depth. continue.')
-            #     continue
-            # max_depth_eval=eval_sample_batched["max_depth"]
-            # min_depth_eval=eval_sample_batched["min_depth"]
+
             pred_depths_r_list, _, _ = model(image)
+            #测试增强
             if post_process:
                 image_flipped = flip_lr(image)
                 pred_depths_r_list_flipped, _, _ = model(image_flipped)
                 pred_depth = post_process_depth(pred_depths_r_list[-1], pred_depths_r_list_flipped[-1])
-
+            #将维度去除
+            # print("pre_depth",pred_depth.shape)
+            # print("gt_depth",gt_depth.shape)
             pred_depth = pred_depth.cpu().numpy().squeeze()
             gt_depth = gt_depth.cpu().numpy().squeeze()
 
 
 
-        pred_depth[pred_depth < min_depth_eval] = min_depth_eval
-        pred_depth[pred_depth > max_depth_eval] = max_depth_eval
-        pred_depth[np.isinf(pred_depth)] = max_depth_eval
-        pred_depth[np.isnan(pred_depth)] = min_depth_eval
+        pred_depth[pred_depth < args.min_depth_eval] = args.min_depth_eval
+        pred_depth[pred_depth > args.max_depth_eval] = args.max_depth_eval
+        pred_depth[np.isinf(pred_depth)] = args.max_depth_eval
+        pred_depth[np.isnan(pred_depth)] = args.min_depth_eval
 
-        valid_mask = np.logical_and(gt_depth > min_depth_eval, gt_depth < max_depth_eval)
+        valid_mask = np.logical_and(gt_depth > args.min_depth_eval, gt_depth < args.max_depth_eval)
 
-        # if args.garg_crop or args.eigen_crop:
-        #     gt_height, gt_width = gt_depth.shape
-        #     eval_mask = np.zeros(valid_mask.shape)
-        #
-        #     if args.garg_crop:
-        #         eval_mask[int(0.40810811 * gt_height):int(0.99189189 * gt_height),
-        #         int(0.03594771 * gt_width):int(0.96405229 * gt_width)] = 1
-        #
-        #     elif args.eigen_crop:
-        #         if args.dataset == 'kitti':
-        #             eval_mask[int(0.3324324 * gt_height):int(0.91351351 * gt_height),
-        #             int(0.0359477 * gt_width):int(0.96405229 * gt_width)] = 1
-        #         elif args.dataset == 'nyu':
-        #             eval_mask[45:471, 41:601] = 1
-        #
-        #     valid_mask = np.logical_and(valid_mask, eval_mask)
-
+        # print("gt_depth[valid_mask]",gt_depth[valid_mask])
+        # print("pred_depth[valid_mask]",pred_depth[valid_mask])
         measures = compute_errors(gt_depth[valid_mask], pred_depth[valid_mask])
 
         eval_measures[:9] += torch.tensor(measures).cuda(device=gpu)
@@ -186,11 +169,10 @@ def main_worker(gpu, ngpus_per_node, args):
             args.rank = int(os.environ["RANK"])
         if args.multiprocessing_distributed:
             args.rank = args.rank * ngpus_per_node + gpu
-        dist.init_process_group(backend=args.dist_backend, init_method=args.dist_url, world_size=args.world_size,
-                                rank=args.rank)
+        dist.init_process_group(backend=args.dist_backend, init_method=args.dist_url, world_size=args.world_size,rank=args.rank)
 
     # model
-    model = NewCRFDepth(version=args.encoder,max_depth=args.max_depth, inv_depth=False,  pretrained=args.pretrain)
+    model = NewCRFDepth(version=args.encoder, inv_depth=False,max_depth=args.max_depth,  pretrained=args.pretrain)
     model.train()
 
     num_params = sum([np.prod(p.size()) for p in model.parameters()])
@@ -290,8 +272,9 @@ def main_worker(gpu, ngpus_per_node, args):
     steps_per_epoch = len(dataloader.data)
     num_total_steps = args.num_epochs * steps_per_epoch
     epoch = global_step // steps_per_epoch
-    print("ok")
+
     group = dist.new_group([i for i in range(ngpus_per_node)])  # 加到这里了
+
     while epoch < args.num_epochs:
         if args.distributed:
             dataloader.train_sampler.set_epoch(epoch)
@@ -300,19 +283,17 @@ def main_worker(gpu, ngpus_per_node, args):
             optimizer.zero_grad()
             before_op_time = time.time()
             si_loss = 0  # 不同点
-
-            print(f"the {step} picture",sample_batched['depth'])
+            #print(f"the {step} picture",sample_batched['depth'])
 
             image = torch.autograd.Variable(sample_batched['image'].cuda(args.gpu, non_blocking=True))
             depth_gt = torch.autograd.Variable(sample_batched['depth'].cuda(args.gpu, non_blocking=True))
-
+            # print(image.shape)
+            # print(depth_gt.shape)
+            # print(f"---------------------{step}-----------------------")
+            # print("depth_gt",depth_gt)
             pred_depths_r_list, pred_depths_c_list, uncertainty_maps_list = model(image, epoch, step)
             # print('pred_depths_r_list',pred_depths_r_list) # 不同点
-
-            # if args.dataset == 'nyu':
-            #     mask = depth_gt > 0.1
-            # else:
-
+            # print("--------------------------------------------------")
             mask = depth_gt > 1.0
             max_tree_depth = len(pred_depths_r_list)
             for curr_tree_depth in range(max_tree_depth):
@@ -444,11 +425,11 @@ def main():
         aux_out_path = os.path.join(args.log_directory, args.model_name)
         networks_savepath = os.path.join(aux_out_path, 'networks')
         dataloaders_savepath = os.path.join(aux_out_path, 'dataloaders')
-        command = 'cp iebins/train.py ' + aux_out_path
+        command = 'cp iebins/whu_mvs_train.py ' + aux_out_path
         os.system(command)
         command = 'mkdir -p ' + networks_savepath + ' && cp iebins/networks/*.py ' + networks_savepath
         os.system(command)
-        command = 'mkdir -p ' + dataloaders_savepath + ' && cp iebins/dataloaders/*.py ' + dataloaders_savepath
+        command = 'mkdir -p ' + dataloaders_savepath + ' && cp iebins/whu_mvs_dataloaders/*.py ' + dataloaders_savepath
         os.system(command)
 
     torch.cuda.empty_cache()

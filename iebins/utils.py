@@ -77,7 +77,13 @@ eval_metrics = ['silog', 'abs_rel', 'log10', 'rms', 'sq_rel', 'log_rms', 'd1', '
 
 
 def compute_errors(gt, pred):
+    # print("-----------gt",gt)
+    # print("-------------pred",pred)
+
     thresh = np.maximum((gt / pred), (pred / gt))
+    
+    #print('Hello', thresh)
+
     d1 = (thresh < 1.25).mean()
     d2 = (thresh < 1.25 ** 2).mean()
     d3 = (thresh < 1.25 ** 3).mean()

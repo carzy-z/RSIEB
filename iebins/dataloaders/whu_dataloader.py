@@ -120,9 +120,7 @@ class DataLoadPreprocess(Dataset):
                 data_path = self.args.data_path
 
             image_path = os.path.join(data_path, "./" + sample_path.split()[0])
-            # print("image_path", image_path)
-            image = np.asarray(image_path)
-            # image = np.asarray(Image.open(image_path), dtype=np.float32) / 255.0
+            image = np.asarray(Image.open(image_path), dtype=np.float32) / 255.0
 
             # depth
             if self.mode == 'online_eval':
@@ -247,8 +245,8 @@ class ToTensor(object):
     def __call__(self, sample):
 
         image, focal = sample['image'], sample['focal']
-        # image = self.to_tensor(image)
-        # image = self.normalize(image)
+        image = self.to_tensor(image)
+        image = self.normalize(image)
 
 
         if self.mode == 'test':

@@ -14,7 +14,7 @@ from tqdm import tqdm
 
 from utils import post_process_depth, flip_lr
 from networks.NewCRFDepth import NewCRFDepth
-
+from dataloaders.whu_dataloader import NewDataLoader
 
 def convert_arg_line_to_args(arg_line):
     for arg in arg_line.split():
@@ -32,8 +32,8 @@ parser.add_argument('--data_path', type=str, help='path to the data', required=T
 parser.add_argument('--filenames_file', type=str, help='path to the filenames text file', required=True)
 parser.add_argument('--max_depth', type=float, help='maximum depth in estimation', default=10)
 parser.add_argument('--checkpoint_path', type=str, help='path to a specific checkpoint to load', default='')
-parser.add_argument('--dataset', type=str, help='dataset to train on', default='nyu')
-parser.add_argument('--do_kb_crop', help='if set, crop input images as kitti benchmark images', action='store_true')
+
+
 
 if sys.argv.__len__() == 2:
     arg_filename_with_prefix = '@' + sys.argv[1]
@@ -41,8 +41,8 @@ if sys.argv.__len__() == 2:
 else:
     args = parser.parse_args()
 
-if args.dataset == 'kitti' or args.dataset == 'nyu':
-    from dataloaders.dataloader import NewDataLoader
+
+
 
 model_dir = os.path.dirname(args.checkpoint_path)
 sys.path.append(model_dir)
@@ -81,8 +81,11 @@ def test(params):
     pred_depths = []
     start_time = time.time()
     with torch.no_grad():
-        for _, sample in enumerate(tqdm(dataloader.data)):
+        for step, sample in enumerate(tqdm(dataloader.data)):
             image = Variable(sample['image'].cuda())
+            # print(image.shape)
+            # print(image*255.0)
+
             # Predict
 
             pred_depths_r_list, _, _ = model(image)
@@ -93,17 +96,14 @@ def test(params):
                 pred_depth = post_process_depth(pred_depths_r_list[-1], pred_depths_r_list_flipped[-1])
 
             pred_depth = pred_depth.cpu().numpy().squeeze()
+            # print('pred_depth.shape',pred_depth.shape)
+            # print('pred_depth',pred_depth)
 
-            if args.do_kb_crop:
-                height, width = 352, 1216
-                top_margin = int(height - 352)
-                left_margin = int((width - 1216) / 2)
-                pred_depth_uncropped = np.zeros((height, width), dtype=np.float32)
-                pred_depth_uncropped[top_margin:top_margin + 352, left_margin:left_margin + 1216] = pred_depth
-                pred_depth = pred_depth_uncropped
-
+            pred_depth=(pred_depth-pred_depth.min())/(pred_depth.max()-pred_depth.min()) *255.0
+            #print(f"第{step}张图",pred_depth)
+            # pred_depth=pred_depth.astype(np.float32)
             pred_depths.append(pred_depth)
-
+            # print('pred_depth--',pred_depth)
 
     elapsed_time = time.time() - start_time
     print('Elapesed time: %s' % str(elapsed_time))
@@ -121,14 +121,11 @@ def test(params):
                 raise
 
     for s in tqdm(range(num_test_samples)):
-        if args.dataset == 'kitti':
-            filename_pred_png = save_name + '/raw/' + lines[s].split()[0].split('/')[-1].replace('.jpg', '.png')
-
+        filename_pred_png = save_name + '/raw/' +lines[s].split()[0].split('/')[-3]+"_"+lines[s].split()[0].split('/')[-1]
+        #print(filename_pred_png)
         pred_depth = pred_depths[s]
-
-        if args.dataset == 'kitti':
-            pred_depth_scaled = pred_depth * 256.0
-        pred_depth_scaled = pred_depth_scaled.astype(np.uint16)
+        pred_depth_scaled = pred_depth
+        pred_depth_scaled = pred_depth_scaled.astype(np.uint8)
         cv2.imwrite(filename_pred_png, pred_depth_scaled, [cv2.IMWRITE_PNG_COMPRESSION, 0])
 
     return

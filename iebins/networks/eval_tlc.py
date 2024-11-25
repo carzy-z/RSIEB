@@ -89,8 +89,7 @@ def eval(model, dataloader_eval, post_process=False):
 
         valid_mask = np.logical_and(gt_depth > args.min_depth_eval, gt_depth < args.max_depth_eval)
 
-        print("gt_depth[valid_mask]",gt_depth[valid_mask])
-        print("pred_depth[valid_mask]",pred_depth[valid_mask])
+
         measures = compute_errors(gt_depth[valid_mask], pred_depth[valid_mask])
 
         eval_measures[:9] += torch.tensor(measures).cuda()

@@ -156,7 +156,7 @@ class NewCRFDepth(nn.Module):
         
         if self.up_mode == 'mask':
             for i in range(len(pred_depths_r_list)):
-                pred_depths_r_list[i] = self.upsample_mask(pred_depths_r_list[i], mask)  
+                pred_depths_r_list[i] = self.upsample_mask(pred_depths_r_list[i], mask)
             for i in range(len(pred_depths_c_list)):
                 pred_depths_c_list[i] = self.upsample_mask(pred_depths_c_list[i], mask.detach())
             for i in range(len(uncertainty_maps_list)):

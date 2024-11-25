@@ -108,7 +108,8 @@ class DataLoadPreprocess(Dataset):
 
 
 
-            depth_gt = np.array(depth_gt).astype(np.float32)  # 获取tiff文件
+            depth_gt = np.array(depth_gt).astype(np.float32)
+            # print("depth_gt",depth_gt.shape)# 获取tiff文件
             depth_gt = np.expand_dims(depth_gt, axis=2)
             # print("depth_gt", depth_gt.shape)
 
@@ -124,6 +125,7 @@ class DataLoadPreprocess(Dataset):
 
             image_path = os.path.join(data_path, "./" + sample_path.split()[0])
             image = np.asarray(Image.open(image_path), dtype=np.float32) / 255.0
+            # print("image", image.shape)
 
             # cams_path = depth_path.replace("Depths", "Cams")
             # cams_path = cams_path.replace(".tiff", ".txt")
@@ -145,8 +147,10 @@ class DataLoadPreprocess(Dataset):
                     depth_gt = False
 
                 if has_valid_depth:
-                    depth_gt = np.array(depth_gt).astype(np.float32) #
+                    depth_gt = np.array(depth_gt).astype(np.float32)
+                    # print("depth_gt--",depth_gt.shape)
                     depth_gt = np.expand_dims(depth_gt, axis=2)
+                    # print("depth_gt", depth_gt.shape)
 
             if self.mode == 'online_eval':
                 sample = {'image': image, 'depth': depth_gt, 'focal': focal}
@@ -269,6 +273,7 @@ class ToTensor(object):
                 'pic should be PIL Image or ndarray. Got {}'.format(type(pic)))
 
         if isinstance(pic, np.ndarray):
+            # print(pic.shape)
             img = torch.from_numpy(pic.transpose((2, 0, 1)))
             return img
 
