@@ -1,0 +1,8 @@
+--model_name iebins_tlc_2
+--encoder large07
+
+--data_path /data1/zhouhongwei/depth_datasets
+--filenames_file uav_data_splits/whu_tlc_pic_list.txt
+--max_depth 530
+
+--checkpoint_path /data1/zhouhongwei/exper/models/1117/iebins_whu/model-151600-best_silog_1.01505

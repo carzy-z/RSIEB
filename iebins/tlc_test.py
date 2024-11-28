@@ -104,8 +104,10 @@ def test(params):
             # print("pred_depth.max()",pred_depth.max())
             # print("pred_depth.min()",pred_depth.min())
             # print("pred_depth.max()-pred_depth.min()",pred_depth.max()-pred_depth.min())
-            np.savetxt('tlc_pixels.csv', pred_depth, delimiter=',')
-            # pred_depth=(pred_depth-pred_depth.min())/(pred_depth.max()-pred_depth.min()) *255.0
+            # np.savetxt('tlc_pixels.csv', pred_depth, delimiter=',')
+            # mask=pred_depth>400.0
+            # pred_depth=(pred_depth-np.min(pred_depth[mask]))/(np.max(pred_depth[mask])-np.min(pred_depth[mask]))*255.0
+            pred_depth = (pred_depth - np.min(pred_depth)) / (np.max(pred_depth) - np.min(pred_depth)) * 255.0
             # scaler=MinMaxScaler(feature_range=(0,255))
             # pred_depth = scaler.fit_transform(pred_depth)
             pred_depths.append(pred_depth)
@@ -132,8 +134,8 @@ def test(params):
         filename_pred_png = save_name + '/raw/' +lines[s].split()[0].split('/')[-3]+"_"+lines[s].split()[0].split('/')[-1]
         #print(filename_pred_png)
         pred_depth = pred_depths[s]
-        pred_depth_scaled = pred_depth
-        pred_depth_scaled = pred_depth_scaled.astype(np.float32)
+        pred_depth_scaled = pred_depth*1
+        pred_depth_scaled = pred_depth_scaled.astype(np.uint16)
         cv2.imwrite(filename_pred_png, pred_depth_scaled, [cv2.IMWRITE_PNG_COMPRESSION, 0])
 
     return

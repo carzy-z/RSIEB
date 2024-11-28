@@ -123,15 +123,20 @@ def online_eval(model, dataloader_eval, gpu, epoch, ngpus, group, post_process=F
             gt_depth = gt_depth.cpu().numpy().squeeze()
 
 
-
+        # print(pred_depth)
+        # print("///////////")
+        # print(gt_depth)
+        # print("--------------")
         pred_depth[pred_depth < args.min_depth_eval] = args.min_depth_eval
         pred_depth[pred_depth > args.max_depth_eval] = args.max_depth_eval
         pred_depth[np.isinf(pred_depth)] = args.max_depth_eval
         pred_depth[np.isnan(pred_depth)] = args.min_depth_eval
-        # print(args.max_depth_eval, args.min_depth_eval)
+        print(args.max_depth_eval, args.min_depth_eval)
+
         valid_mask = np.logical_and(gt_depth > args.min_depth_eval, gt_depth < args.max_depth_eval)
         # print(gt_depth[valid_mask])
-        # pred_depth([valid_mask])
+        # print("************")
+        # print(pred_depth[valid_mask])
         measures = compute_errors(gt_depth[valid_mask], pred_depth[valid_mask])
 
         eval_measures[:9] += torch.tensor(measures).cuda(device=gpu)
@@ -171,7 +176,7 @@ def main_worker(gpu, ngpus_per_node, args):
         dist.init_process_group(backend=args.dist_backend, init_method=args.dist_url, world_size=args.world_size,rank=args.rank)
 
     # model
-    model = NewCRFDepth(version=args.encoder, inv_depth=False,max_depth=args.max_depth,  pretrained=args.pretrain)
+    model = NewCRFDepth(version=args.encoder, inv_depth=False,max_depth=args.max_depth, min_depth=args.min_depth,  pretrained=args.pretrain)
     model.train()
 
     num_params = sum([np.prod(p.size()) for p in model.parameters()])
@@ -291,6 +296,8 @@ def main_worker(gpu, ngpus_per_node, args):
             # print(f"---------------------{step}-----------------------")
             # print("depth_gt",depth_gt)
             pred_depths_r_list, pred_depths_c_list, uncertainty_maps_list = model(image, epoch, step)
+            print("epoch---",epoch)
+            print("step---",step)
             # print('pred_depths_r_list',pred_depths_r_list) # 不同点
             # print("--------------------------------------------------")
             mask = depth_gt > 1.0

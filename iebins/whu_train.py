@@ -171,7 +171,7 @@ def main_worker(gpu, ngpus_per_node, args):
         dist.init_process_group(backend=args.dist_backend, init_method=args.dist_url, world_size=args.world_size,rank=args.rank)
 
     # model
-    model = NewCRFDepth(version=args.encoder, inv_depth=False,max_depth=args.max_depth,  pretrained=args.pretrain)
+    model = NewCRFDepth(version=args.encoder, inv_depth=False,max_depth=args.max_depth, min_depth=args.min_depth,  pretrained=args.pretrain)
     model.train()
 
     num_params = sum([np.prod(p.size()) for p in model.parameters()])
@@ -428,7 +428,7 @@ def main():
         os.system(command)
         command = 'mkdir -p ' + networks_savepath + ' && cp iebins/networks/*.py ' + networks_savepath
         os.system(command)
-        command = 'mkdir -p ' + dataloaders_savepath + ' && cp iebins/whu_dataloaders/*.py ' + dataloaders_savepath
+        command = 'mkdir -p ' + dataloaders_savepath + ' && cp iebins/dataloaders/*.py ' + dataloaders_savepath
         os.system(command)
 
     torch.cuda.empty_cache()

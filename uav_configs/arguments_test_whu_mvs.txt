@@ -1,0 +1,8 @@
+--model_name iebins_whu_mvs
+--encoder large07
+
+--data_path /data1/zhouhongwei/depth_datasets
+--filenames_file uav_data_splits/whu_mvs_pic_list.txt
+--max_depth 555
+
+--checkpoint_path /data1/zhouhongwei/exper/models/1117/iebins_whu/model-46600-best_abs_rel_0.01868

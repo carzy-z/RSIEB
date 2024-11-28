@@ -127,11 +127,12 @@ def test(params):
                 raise
 
     for s in tqdm(range(num_test_samples)):
-        filename_pred_png = save_name + '/raw/' +lines[s].split()[0].split('/')[-3]+"_"+lines[s].split()[0].split('/')[-1]
-        #print(filename_pred_png)
+        filename_pred_png = save_name + '/raw/' +lines[s].split()[0].split('/')[-3]+"_"+lines[s].split()[0].split('/')[-2]+"_"+lines[s].split()[0].split('/')[-1]
+        print(lines[s])
+        print(filename_pred_png)
         pred_depth = pred_depths[s]
         pred_depth_scaled = pred_depth
-        pred_depth_scaled = pred_depth_scaled.astype(np.float16)
+        pred_depth_scaled = pred_depth_scaled.astype(np.uint8)
         cv2.imwrite(filename_pred_png, pred_depth_scaled, [cv2.IMWRITE_PNG_COMPRESSION, 0])
 
     return

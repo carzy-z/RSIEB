@@ -134,7 +134,7 @@ class DataLoadPreprocess(Dataset):
             shape = (height, width, 3) if color else (height, width)
             data = np.reshape(data, shape)
             data = np.flip(data, 0)
-            depth_gt=data.astype(np.float32)
+            depth_gt=data.astype(np.float32)/1000.0
             depth_gt = np.expand_dims(depth_gt, axis=2)
             # print(image.shape,depth_gt.shape)
             # 深度图进行数据增强，
@@ -206,7 +206,7 @@ class DataLoadPreprocess(Dataset):
                     shape = (height, width, 3) if color else (height, width)
                     data = np.reshape(data, shape)
                     data = np.flip(data, 0)
-                    depth_gt = data.astype(np.float32)
+                    depth_gt = data.astype(np.float32)/1000.0
                     depth_gt = np.expand_dims(depth_gt, axis=2)
                     # print(depth_gt.shape)
 
